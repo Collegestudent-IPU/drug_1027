@@ -1,0 +1,616 @@
+MainActivity　
+
+package com.example.saira_000.drug_demo1023_1;
+
+import androidx.annotation.RequiresApi;
+import androidx.appcompat.app.AppCompatActivity;
+
+import android.content.Intent;
+import android.os.Build;
+import android.os.Bundle;
+import android.view.DragEvent;
+import android.view.View;
+import android.widget.Button;
+import android.widget.GridLayout;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import java.util.Random;
+
+public class MainActivity extends AppCompatActivity implements View.OnLongClickListener, View.OnDragListener {
+    /** ドラッグされたView */
+    private View mDragView;
+    /** レイアウト */
+    private GridLayout mParent;
+
+    private long startTime;
+    private long stopTime;
+
+
+    /**
+     * アプリ起動時の最初に呼ばれるイベント
+     * @param savedInstanceState
+     */
+    @RequiresApi(api = Build.VERSION_CODES.P)
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+
+        // 各Viewに、ボタン長押し・ドラッグのイベントを設定していく
+        mParent = findViewById(R.id.grid_layout);
+        for (int i = 0; i < mParent.getChildCount(); i++) {
+            View v = mParent.getChildAt(i);
+            v.setOnLongClickListener(this);
+            v.setOnDragListener(this);
+            shufflePanel(mParent.getChildCount());
+        }
+        Button sendButton = findViewById(R.id.return1_button);
+        sendButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(MainActivity.this, RefistrationActivity.class);
+                startActivity(intent);
+
+            }
+        });
+        Button startbtn = (Button)findViewById(R.id.startbtn);
+        startbtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // スタートボタンが押された時間を代入
+                startTime = System.currentTimeMillis();
+            }
+        });
+
+    }
+
+
+
+    /**
+     * Viewを長押ししたとき通知されるイベント
+     * @param v 対象のView
+     * @return イベント有効有無
+     */
+    @RequiresApi(api = Build.VERSION_CODES.N)
+    @Override
+    public boolean onLongClick(View v) {
+        // 長押ししているViewをドラッグ状態にする。
+        v.startDragAndDrop(null, new View.DragShadowBuilder(v), v, 0);
+        mDragView = v;
+
+        // 図（b, c）から、ドラッグ中のViewは見えなくなる必要があるので、透過値調整して消す。
+        // Visibilityで消すこともできるが、ドラッグ終了時のアニメーションが入るので、透過値で非表示を表現
+        mDragView.setAlpha(0);
+        return true;
+    }
+
+
+    /**
+     * ドラッグされたとき通知されるイベント
+     * @param v 通知を受信したView
+     * @param event イベント（使用するのは、ドラッグ終了、ドラッグしたまま他のViewの上にカーソルが合う)
+     * @return イベント有効有無(必ずTrueにする)
+     */
+    @RequiresApi(api = Build.VERSION_CODES.P)
+    @Override
+    public boolean onDrag(final View v, DragEvent event) {
+        switch (event.getAction()) {
+            // 手を放し、ドラッグが終了した時の処理。ドラッグしているViewを表示させる。
+            case DragEvent.ACTION_DRAG_ENDED:
+                getMainExecutor().execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        mDragView.setAlpha(1);
+                    }
+                });
+                break;
+
+            // ドラッグ中他のViewの上に乗る時の処理。Viewの位置を入れ替える
+            case DragEvent.ACTION_DRAG_LOCATION:
+                getMainExecutor().execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        MainActivity.this.swap(v, mDragView);
+                    }
+                });
+                break;
+        }
+        return true;
+    }
+
+    /**
+     * Viewの位置を入れ替える
+     * @param v1 入れ替え対象１
+     * @param v2 入れ替え対象2
+     */
+    private void swap(View v1, View v2) {
+        // 同じViewなら入れ替える必要なし
+        if (v1 == v2) return;
+
+        // タグ情報を入れ替える
+        Object o1 = v1.getTag(), o2 = v2.getTag();
+        v1.setTag(o2);
+        v2.setTag(o1);
+
+        // レイアウトパラメータを抜き出して、入れ替えを行う
+        GridLayout.LayoutParams p1 = (GridLayout.LayoutParams) v1.getLayoutParams();
+        GridLayout.LayoutParams p2 =  (GridLayout.LayoutParams) v2.getLayoutParams();
+        mParent.removeView(v1);
+        mParent.removeView(v2);
+        mParent.addView(v1, p2);
+        mParent.addView(v2, p1);
+    }
+
+
+    /**
+     * OKボタンがクリックされたときのイベント
+     * @param v OKボタンのオブジェクト
+     */
+    public void onClickForOkButton(View v) {
+        if (checkPassword()) {
+
+            // 画面遷移するならstartActivity
+            // startActivity(new Intent(getApplicationContext(), MainActivity.class));
+            Toast.makeText(this, "認証成功", Toast.LENGTH_SHORT).show();
+
+            stopTime = System.currentTimeMillis();
+
+            TextView timeTextView =  (TextView)findViewById(R.id.timeTextView);
+            long time = stopTime - startTime;
+            int second = (int) (time/1000);
+            int comma = (int) (time % 1000);
+            timeTextView.setText((second + "秒" + comma).toString());
+        } else {
+
+            Toast.makeText(this, "認証失敗", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * 認証が成功しているか確認する
+     * @return true:確認成功　false:確認失敗
+     */
+    private boolean checkPassword() {
+        // 上部に来てほしいViewを取得して、タグを見る
+        //int pas1=0,pas2=0,pas3=0,pas4=0;
+
+        Object o1 = findViewById(R.id.panel00).getTag();
+        Object o2 = findViewById(R.id.panel01).getTag();
+        Object o3 = findViewById(R.id.panel02).getTag();
+        Object o4 = findViewById(R.id.panel03).getTag();
+
+        // タグ情報が一致しているか確認する
+        //return "0".equals(o1) && "1".equals(o2) && "2".equals(o3) && "3".equals(o4);
+
+        return  ("0".equals(o1) || "5".equals(o1) || "10".equals(o1) || "15".equals(o1))&&
+                ("0".equals(o2) || "5".equals(o2) || "10".equals(o2) || "15".equals(o2))&&
+                ("0".equals(o3) || "5".equals(o3) || "10".equals(o3) || "15".equals(o3))&&
+                ("0".equals(o4) || "5".equals(o4) || "10".equals(o4) || "15".equals(o4));
+    }
+
+
+    /**
+     * シャッフルボタンがクリックされたときのイベント
+     * @param v シャッフルボタンのオブジェクト
+     */
+    @RequiresApi(api = Build.VERSION_CODES.P)
+    public void onClickForShuffleButton(View v) {
+        shufflePanel(mParent.getChildCount());
+    }
+
+    Random mRandom = new Random();
+    /**
+     * パネルをシャッフルする
+     * @param length シャッフルする対象の量
+     */
+    @RequiresApi(api = Build.VERSION_CODES.P)
+    private void shufflePanel(int length) {
+        for (int i = length - 1; 0 < i; i--) {
+            final int index = i, rnd = mRandom.nextInt(i);
+            getMainExecutor().execute(new Runnable() {
+                @Override
+                public void run() {
+                    View v1 = mParent.getChildAt(index);
+                    View v2 = mParent.getChildAt(rnd);
+                    MainActivity.this.swap(v1, v2);
+                }
+            });
+        }
+    }
+}
+
+///////////////////////////////////////
+activity_main.xml
+////////////////////////////////////
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context=".RefistrationActivity">
+
+
+    <GridLayout
+        android:id="@+id/grid_layout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:context=".RefistrationActivity">
+
+        <Button
+            android:id="@+id/button00"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="0"
+            android:layout_column="0"
+            android:text="1" />
+
+        <Button
+            android:id="@+id/button01"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="0"
+            android:layout_column="1"
+            android:text="2" />
+
+        <Button
+            android:id="@+id/button02"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="0"
+            android:layout_column="2"
+            android:text="3" />
+
+        <Button
+            android:id="@+id/button03"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="0"
+            android:layout_column="3"
+            android:text="4" />
+
+        <Button
+            android:id="@+id/button04"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="1"
+            android:layout_column="0"
+            android:text="5" />
+
+        <Button
+            android:id="@+id/button05"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="1"
+            android:layout_column="1"
+            android:text="6" />
+
+        <Button
+            android:id="@+id/button06"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="1"
+            android:layout_column="2"
+            android:text="7" />
+
+        <Button
+            android:id="@+id/button07"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="1"
+            android:layout_column="3"
+            android:text="8" />
+
+        <Button
+            android:id="@+id/button08"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="2"
+            android:layout_column="0"
+            android:text="9" />
+
+        <Button
+            android:id="@+id/button09"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="2"
+            android:layout_column="1"
+            android:text="0" />
+
+        <Button
+            android:id="@+id/button10"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="2"
+            android:layout_column="2"
+            android:text="青" />
+
+        <Button
+            android:id="@+id/button11"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="2"
+            android:layout_column="3"
+            android:text="黄" />
+
+        <Button
+            android:id="@+id/button12"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="3"
+            android:layout_column="0"
+            android:text="紫" />
+
+        <Button
+            android:id="@+id/button13"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="3"
+            android:layout_column="1"
+            android:text="黒" />
+
+        <Button
+            android:id="@+id/button14"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="3"
+            android:layout_column="2"
+            android:text="緑" />
+
+        <Button
+            android:id="@+id/button15"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="3"
+            android:layout_column="3"
+            android:text="赤" />
+
+
+
+    </GridLayout>
+
+    <Button
+        android:id="@+id/return1_button"
+        android:layout_width="132dp"
+        android:layout_height="60dp"
+        android:text="戻り"
+        app:layout_column="2"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.164"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.807"
+        app:layout_row="2" />
+
+    <Button
+        android:id="@+id/button2"
+        android:layout_width="132dp"
+        android:layout_height="60dp"
+        android:text="NEXT"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.623"
+        app:layout_constraintStart_toEndOf="@+id/return1_button"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.807" />
+</androidx.constraintlayout.widget.ConstraintLayout>
+
+///////////////////////////////////////
+RefistrationActivity.java
+////////////////////////////////////////
+package com.example.saira_000.drug_demo1023_1;
+
+
+import android.app.Activity;
+import android.os.Bundle;
+import android.view.View;
+import android.widget.Button;
+
+public class RefistrationActivity extends Activity {
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_registration);
+
+        Button returnButton = findViewById(R.id.return1_button);
+        returnButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                finish();
+            }
+        });
+    }
+
+}
+
+
+/////////////////////////////////////////////////
+activity_registration.aml
+////////////////////////////////////////////////
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context=".RefistrationActivity">
+
+
+    <GridLayout
+        android:id="@+id/grid_layout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:context=".RefistrationActivity">
+
+        <Button
+            android:id="@+id/button00"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="0"
+            android:layout_column="0"
+            android:text="1" />
+
+        <Button
+            android:id="@+id/button01"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="0"
+            android:layout_column="1"
+            android:text="2" />
+
+        <Button
+            android:id="@+id/button02"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="0"
+            android:layout_column="2"
+            android:text="3" />
+
+        <Button
+            android:id="@+id/button03"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="0"
+            android:layout_column="3"
+            android:text="4" />
+
+        <Button
+            android:id="@+id/button04"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="1"
+            android:layout_column="0"
+            android:text="5" />
+
+        <Button
+            android:id="@+id/button05"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="1"
+            android:layout_column="1"
+            android:text="6" />
+
+        <Button
+            android:id="@+id/button06"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="1"
+            android:layout_column="2"
+            android:text="7" />
+
+        <Button
+            android:id="@+id/button07"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="1"
+            android:layout_column="3"
+            android:text="8" />
+
+        <Button
+            android:id="@+id/button08"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="2"
+            android:layout_column="0"
+            android:text="9" />
+
+        <Button
+            android:id="@+id/button09"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="2"
+            android:layout_column="1"
+            android:text="0" />
+
+        <Button
+            android:id="@+id/button10"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="2"
+            android:layout_column="2"
+            android:text="青" />
+
+        <Button
+            android:id="@+id/button11"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="2"
+            android:layout_column="3"
+            android:text="黄" />
+
+        <Button
+            android:id="@+id/button12"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="3"
+            android:layout_column="0"
+            android:text="紫" />
+
+        <Button
+            android:id="@+id/button13"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="3"
+            android:layout_column="1"
+            android:text="黒" />
+
+        <Button
+            android:id="@+id/button14"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="3"
+            android:layout_column="2"
+            android:text="緑" />
+
+        <Button
+            android:id="@+id/button15"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_row="3"
+            android:layout_column="3"
+            android:text="赤" />
+
+
+
+    </GridLayout>
+
+    <Button
+        android:id="@+id/return1_button"
+        android:layout_width="132dp"
+        android:layout_height="60dp"
+        android:text="戻り"
+        app:layout_column="2"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.164"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.807"
+        app:layout_row="2" />
+
+    <Button
+        android:id="@+id/button2"
+        android:layout_width="132dp"
+        android:layout_height="60dp"
+        android:text="NEXT"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.623"
+        app:layout_constraintStart_toEndOf="@+id/return1_button"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.807" />
+</androidx.constraintlayout.widget.ConstraintLayout>
+
+
